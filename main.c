@@ -223,7 +223,7 @@ int distConvert(char distance)
    //distance/maxDist gives us a 0-1 value, with 1 being nothing there and 0 being really close.
    //We multiply this by 100 to get a percentage that's the opposite of what we need, so
    //we just subtract it from 100 to get what we need.
-   output = 100 - 100*(distance/maxDist); 
+   output = 100 - (100*distance)/maxDist; 
    return output;
 }
 

@@ -1,59 +1,27 @@
 #include <hidef.h>      /* common defines and macros */
 #include "derivative.h"      /* derivative-specific definitions */
-
-#define RS      0x20
-#define RW      0x40
-#define LCDCLK  0x80
-#define LCDON   0x0F
-#define LCDCLR  0x01
-#define TWOLINE 0x38
-#define CURMOV  0xFE
-#define LINE1   0x80
-#define LINE2   0xC0
-
-unsigned char tencnt;
-unsigned char tenths;
-unsigned short tem1;
-unsigned short tem2;
-unsigned short tem3;
-unsigned short tem4;
-
-void initialize(void);
-void TIM_Init(void);
-void PWM_Init(void);
-void ATD_Init(void);
-void SPI_Init(void);
-void LCD_Init(void);
-void static wait(unsigned short delay);
-void LCD_Instruction(unsigned char instru);
-void LCD_Send(unsigned char content);
-void LCD_Printc(unsigned char character);
-void LCD_Printmsg(char *pt);
-void ATD_Convert(void);
-void convertTemp(void);
-void displayTemp(void);
-void printLCDTemp(unsigned short);
-
+#include "main.h" /* Function inits, global variables, definitions, etc. */
 
 void main(void) {
-  initialize();
-  
-	
-	  
-	
-
+  initialize(); //Initialize ALL THE THINGS.
 
   for(;;) {
     _FEED_COP(); /* feeds the dog */
-    if(tenths == 1){
-      tenths = 0;
-      ATD_Convert();
-      convertTemp();
-      displayTemp();
+
+    if(tenths == 1){ //if our tenth of a second flag is set...
+      tenths = 0; //unset it...
+      ATD_Convert(); //run an ATD Conversion
+      convertTemp(); //convert the temperature from the conversion
+      displayTemp(); //and display the temperature.
     }
+
   } /* loop forever */
   /* please make sure that you never leave main */
 }
+
+/* initialize */
+/* Runs all of the initializations, also 
+initializes global variables */
 void initialize(void){
   tencnt = 0;
   tenths = 0;
@@ -69,6 +37,8 @@ void initialize(void){
   EnableInterrupts;
 }
 
+/* TIM-Init */
+/* Initilizes the Timer */
 void TIM_Init(void){
 TSCR1 = 0x80;
 TIOS  = 0x80;
@@ -77,6 +47,8 @@ TC7   = 15000;
 TIE   = 0x80;            //enable or disable????   enable
 }
 
+/* PWM_Init */
+/* Initilizes the PWM */
 void PWM_Init(void){
 //sampling frequency approximately 100Hz
 MODRR   = 0x0F;
@@ -101,18 +73,24 @@ PWMSCLB = 0x04;
 //PTT
 }
 
+/* ATD_Init */
+/* Initilizes the ATD */
 void ATD_Init(void){
   ATDCTL2 = 0x80; 
   ATDCTL3 = 0x00; //Sequence length = 8
   ATDCTL4 = 0x05; //%00000101 10 bit resolution;2 ATD clock periods;
 }
 
+/* SPI_Init */
+/* Initilizes the SPI */
 void SPI_Init(void){
 SPIBR  = 0x01;
 SPICR1 = 0x50;
 SPICR2 = 0x00; 
 }
 
+/* LCD_Init */
+/* Initilizes the LCD */
 void LCD_Init(void){
 PTT |= LCDCLK;
 PTT &= ~RW;
@@ -122,22 +100,28 @@ LCD_Instruction(LCDCLR);
 wait(2998);              //delay for 2ms;
 }
 
-
-//wait(2998);    //2ms
-//wait(2);       //30cycle
-//TCNT will increase every 0.667 us   1.5MHz(24/prescalar16)
+/* wait */
+/* Waits for a given period of time.
+wait(2998): appx 2ms
+wait(2): appx 30 cycles
+TCNT will increase every 0.667 us   
+[1.5MHz(24/(prescalar=16))] */
 void static wait(unsigned short delay){ 
 unsigned short startTime;
   startTime = TCNT;
   while((TCNT-startTime) <= delay){}  
 }
 
+/* LCD_Instruction */
+/* Sends an instruction to the LCD */
 void LCD_Instruction(unsigned char instru){
 PTT &= ~RS;
 LCD_Send(instru);
 
 }
 
+/* LCD_Send */
+/* Sends a byte to the LCD */
 void LCD_Send(unsigned char byt){
 while (SPISR_SPTEF == 0) {} 
 SPIDR = byt;
@@ -150,11 +134,15 @@ wait(50);
 }
 
 
+/* LCD_Printc */
+/* Sends a character to the LCD */
 void LCD_Printc(unsigned char character){
 PTT |= RS;
 LCD_Send(character);
 }
 
+/* LCD_Printmsg */
+/* Prints a string to the LCD */
 void LCD_Printmsg(char *pt){
 while(*pt){
 LCD_Printc((unsigned char)*pt);
@@ -162,6 +150,9 @@ pt++;
 }
 }
 
+/*ATD_Convert */
+/* Performs ATD Conversions for the Temperature Sensors and the
+* IR receivers. */
 void ATD_Convert(void){
   ATDCTL5 = 0x10;                 //begin with channel 0  
   while((ATDSTAT1&0x01)==0){};    // wait for CCF0 
@@ -176,6 +167,10 @@ void ATD_Convert(void){
   
 }
 
+/* Convert Temp */
+/* Converts the given temperature from the actual
+* sensor (via the ATD) to an actual temperature
+* (right?) */
 void convertTemp(void){
   //Convert tem1
   asm(" ldd tem1");
@@ -219,6 +214,8 @@ void convertTemp(void){
   tem4 = tem4 * 500/1024;
 }
   
+/* displayTemp */
+/* Runs all of the LCD temperature display code */
 void displayTemp(void){
   LCD_Instruction(LCDCLR);
   LCD_Instruction(CURMOV);
@@ -235,6 +232,9 @@ void displayTemp(void){
   printLCDTemp(tem4);
 }
 
+/* printLCDTemp procedure */
+/* prints arbitrary messages to the LCD based on 
+   given temperature */
 void printLCDTemp(unsigned short temp){
   if(temp >= 32)
     LCD_Printmsg("HOT ");
@@ -245,10 +245,11 @@ void printLCDTemp(unsigned short temp){
   else if(temp >= 15)
     LCD_Printmsg("COOL");
   else
-    LCD_Printmsg("COLD");}     
+    LCD_Printmsg("COLD");}     
        
-  
-void interrupt 15 ExtHan(void){
+/* TIM Interrupt Procedure */  
+/* increments tenth of a second counter */
+void interrupt 15 timerInterrupt(void){
    TFLG1 = 0x80;
    tencnt++;
    if(tencnt >= 10){

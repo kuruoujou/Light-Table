@@ -14,6 +14,7 @@ unsigned short tem1;
 unsigned short tem2;
 unsigned short tem3;
 unsigned short tem4;
+unsigned char maxDist;
 
 void initialize(void);
 void TIM_Init(void);

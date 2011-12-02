@@ -31,6 +31,7 @@ void initialize(void){
   PWM_Init();
   ATD_Init();
   SPI_Init();
+  IR_Init();
   LCD_Init();
   
   
@@ -100,6 +101,30 @@ LCD_Instruction(LCDCLR);
 wait(2998);              //delay for 2ms;
 }
 
+/* IR_Init */
+/* Initilizes the IR 'nominal' value *
+* That is, reads the IR in the room and *
+* uses that as the nominal value */
+void IR_Init(void)
+{
+ ATDCTL5 = 0x10;                 //begin with channel 0  
+  while((ATDSTAT1&0x01)==0){
+    continue;
+  };    // wait for CCF0 
+
+  //Get the IR Sensor inputs
+  //Use the minimum value, as it's the one reading the highest IR (5V = no IR, 0V = OMG SO MUCH IR!!)
+  if (ATDDR0 < ATDDR1 && ATDDR0 < ATDDR2 && ATDDR0 < ATDDR3){
+	maxDist = ATDDR0;
+  }
+  else if (ATDDR1 < ATDDR2 && ATDDR1 < ATDDR3 && ATDDR1 < ATDDR0){
+	maxDist = ATDDR1;
+  }
+  else if (ATDDR2 < ATDDR3 && ATDDR2 < ATDDR0 & ATDDR2 < ATDDR1){
+	maxDist = ATDDR2;
+  }
+  else{ maxDist = ATDDR3; }
+}
 /* wait */
 /* Waits for a given period of time.
 wait(2998): appx 2ms
@@ -150,21 +175,56 @@ pt++;
 }
 }
 
+
 /*ATD_Convert */
 /* Performs ATD Conversions for the Temperature Sensors and the
 * IR receivers. */
 void ATD_Convert(void){
+  char dist1, dist2, dist3, dist4
+  int duty1, duty2, duty3, duty4;
+
   ATDCTL5 = 0x10;                 //begin with channel 0  
-  while((ATDSTAT1&0x01)==0){};    // wait for CCF0 
+  while((ATDSTAT1&0x01)==0){
+    continue;
+  };    // wait for CCF0 
+  //Get the temperature sensor inputs
   tem1 = ATDDR4;
   tem2 = ATDDR5;
   tem3 = ATDDR6;
   tem4 = ATDDR7;
-  PWMDTY0 = ATDDR0;               //modify the PWM duty cycle
-  PWMDTY1 = ATDDR1;
-  PWMDTY2 = ATDDR2;
-  PWMDTY3 = ATDDR3;
   
+  //Get the IR Sensor inputs
+  dist1 = ATDDR0;
+  dist2 = ATDDR1;
+  dist3 = ATDDR2;
+  dist4 = ATDDR3;
+
+  //Run conversions
+  duty1 = distConvert(dist1);
+  duty2 = distConvert(dist2);
+  duty3 = distConvert(dist3);
+  duty4 = distConvert(dist4);
+  
+  //Output to the PWMs
+  PWMDTY0 = duty1;               //modify the PWM duty cycle
+  PWMDTY1 = duty2;
+  PWMDTY2 = duty3;
+  PWMDTY3 = duty4;
+  
+}
+
+/* distConvert */
+/* Converts the 0-5 percentage from the ATD to a duty cycle
+* to send to the PWM */
+int distConvert(char distance)
+{
+	int output;
+   //So, what happens here:
+   //distance/maxDist gives us a 0-1 value, with 1 being nothing there and 0 being really close.
+   //We multiply this by 100 to get a percentage that's the opposite of what we need, so
+   //we just subtract it from 100 to get what we need.
+   output = 100 - 100*(distance/maxDist); 
+   return output;
 }
 
 /* Convert Temp */
